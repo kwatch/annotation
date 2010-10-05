@@ -17,30 +17,24 @@
 ###    class Controller
 ###      extend Annotation
 ###
-###      annotation :GET do |klass, imethod, path|
-###        klass.class_eval do
-###          (@__actions ||= []) << [imethod, :GET, path]
-###        end
+###      def self.GET(imethod, path)
+###        (@__routes ||= []) << [path, :GET, imethod]
 ###      end
 ###
-###      [:POST, :PUT, :DELETE].each do |req_meth|
-###        annotation req_meth do |klass, imethod, path|
-###          klass.class_eval do
-###            (@__actions ||= []) << [imethod, req_meth, path]
-###          end
-###        end
+###      def self.POST(imethod, path)
+###        (@__routes ||= []) << [path, :POST, imethod]
 ###      end
 ###
-###      annotation :login_required do |klass, imethod, path|
-###        klass.class_eval do
-###          alias_method "__orig_#{imethod}", imethod
-###          s = "def #{imethod}(*args)
-###                 raise '302 Found' unless @current_user
-###                 __orig_#{imethod}(*args)
-###               end"
-###          eval s
-###        end
+###      def self.login_required(imethod)
+###        alias_method "__orig_#{imethod}", imethod
+###        s = "def #{imethod}(*args)
+###               raise '302 Found' unless @current_user
+###               __orig_#{imethod}(*args)
+###             end"
+###        self.class_eval s    # not 'eval(s)'
 ###      end
+###
+###      annotation :GET, :POST, :login_required
 ###
 ###    end
 ###
@@ -63,25 +57,29 @@
 ###        "update(#{id}) called."
 ###      end
 ###
-###      p @__actions   #=> [[:index, :GET, "/"],
-###                     #    [:show, :GET, "/:id"],
-###                     #    [:update, :POST, "/:id"]]
+###      p @__routes   #=> [["/", :GET, :index],
+###                    #    ["/:id", :GET, :show],
+###                    #    ["/:id", :POST, :update]]
 ###    end
 ###
 ###
-###    MyController.new.update(123)   #=> 302 Found (RuntimeError)
+###    p MyController.new.update(123)   #=> 302 Found (RuntimeError)
 ###
 module Annotation
 
   VERSION = "$Release: 0.0.0 $".split(' ')[1]
 
-  def annotation(name, &block)
-    key = name.is_a?(Symbol) ? name : name.to_s.intern
-    (@@__anno_callbacks ||= {})[key] = block
-    s = "def self.#{name}(*args)
-           (@__annotations ||= []) << [:#{name}, args]
-         end;"
-    eval s   # or self.class_eval(s) ?
+  def annotation(*names)
+    (class << self; self; end).class_eval do
+      s = ""
+      names.each do |name|
+        alias_method "__anno_#{name}", name
+        s << "def #{name}(*args)
+                (@__annotations ||= []) << [:__anno_#{name}, args]
+              end\n"
+      end
+      eval s   # or self.class_eval(s) ?
+    end
   end
 
   private
@@ -89,10 +87,8 @@ module Annotation
   def method_added(method_name)
     if @__annotations && ! @__anno_processing
       @__anno_processing = true   # necessary to avoid infinite recursive call
-      @__annotations.each do |name, args|
-        callback = @@__anno_callbacks[name]  or
-          raise "*** assertion failed: annotiaion '#{name}' not found."
-        callback.call(self, method_name, *args)
+      @__annotations.each do |aliased_name, args|
+        __send__(aliased_name, method_name, *args)
       end
       @__annotations = nil
       @__anno_processing = false

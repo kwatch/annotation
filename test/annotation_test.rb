@@ -34,14 +34,18 @@ class AnnotationTest
     spec "define annotation method." do
       Dummy1.class_eval do
         extend Annotation
-        annotation :GET do |klass, method_name, path|
+        def self.GET(method_name, path)
           (@__actions ||= []) << [method_name, :GET, path]
         end
-        [:POST, :PUT, :DELETE].each do |req_meth|
-          annotation req_meth do |klass, method_name, path|
-            (@__actions ||= []) << [method_name, req_meth, path]
+        annotation :GET
+        class << self
+          [:POST, :PUT, :DELETE].each do |req_meth|
+            define_method req_meth do |method_name, path|
+              (@__actions ||= []) << [method_name, req_meth, path]
+            end
           end
         end
+        annotation :POST, :PUT, :DELETE
       end
       ok_(Dummy1.respond_to?(:GET))    == true
       ok_(Dummy1.respond_to?(:POST))   == true
@@ -90,9 +94,12 @@ class AnnotationTest
     spec "callback is called only when method is defined." do
       called = false
       Dummy1.class_eval do
-        annotation :ann1 do |klass, method_name|
-          called = true
+        (class << self; self; end).class_eval do
+          define_method :ann1 do |method_name|
+            called = true
+          end
         end
+        annotation :ann1
       end
       ok_(called) == false
       Dummy1.class_eval do
@@ -103,15 +110,17 @@ class AnnotationTest
     end
 
     spec "self in annotation callback is class object." do
-      actual = nil
+      $__self = false
       Dummy1.class_eval do
-        annotation :ann2 do |klass, method_name|
-          actual = self
+        def self.ann2(method_name)
+          $__self = self
         end
+        annotation :ann2
         ann2
         def meth2; end
       end
-      ok_(actual) == Dummy1
+      #ok_(Dummy1.__send__(:class_variable_get, '@@__self__')) == Dummy1
+      ok_($__self) == Dummy1
     end
 
   end
@@ -123,10 +132,12 @@ class AnnotationTest
     spec "if annotation is specified then call callbacks." do
       annotated = []
       Dummy2.class_eval do
+        @@_annotated_ = annotated
         extend Annotation
-        annotation :anno3 do |klass, method_name|
-          annotated << method_name
+        def self.anno3(method_name)
+          @@_annotated_ << method_name
         end
+        annotation :anno3
       end
       ok_(annotated) == []
       Dummy2.class_eval do
@@ -141,9 +152,9 @@ class AnnotationTest
 
     spec "it is possible to define new method in annotation callback." do
       Dummy2.class_eval do
-        annotation :login_required do |klass, method_name|
+        def self.login_required(method_name)
           orig_method = "_orig_#{method_name}"
-          klass.class_eval do
+          class_eval do
             alias_method orig_method, method_name
             eval "def #{method_name}(*args)
                     raise '302 Found' unless @_current_user
@@ -151,6 +162,7 @@ class AnnotationTest
                   end"
           end
         end
+        annotation :login_required
         login_required
         def do_update(*args)
           return "updated: args=#{args.inspect}"
