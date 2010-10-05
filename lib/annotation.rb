@@ -13,27 +13,39 @@
 ###
 ###    require 'annotation'
 ###
+###
 ###    class Controller
 ###      extend Annotation
 ###
-###      annotation :GET do |imethod, path|
-###        (@__actions ||= []) << [imethod, :GET, path]
-###      end
-###
-###      [:POST, :PUT, :DELETE].each do |req_meth|
-###        annotation req_meth do |imethod, path|
-###          (@__actions ||= []) << [imethod, req_meth, path]
+###      annotation :GET do |klass, imethod, path|
+###        klass.class_eval do
+###          (@__actions ||= []) << [imethod, :GET, path]
 ###        end
 ###      end
 ###
-###      annotation :login_required do |imethod, path|
-###        alias_method "__orig_#{imethod}", imethod
-###        s = "def #{imethod}(*args)
-###               raise '302 Found' unless @current_user
-###               __orig_#{imethod}(*args)
-###             end"
-###        eval s
+###      [:POST, :PUT, :DELETE].each do |req_meth|
+###        annotation req_meth do |klass, imethod, path|
+###          klass.class_eval do
+###            (@__actions ||= []) << [imethod, req_meth, path]
+###          end
+###        end
 ###      end
+###
+###      annotation :login_required do |klass, imethod, path|
+###        klass.class_eval do
+###          alias_method "__orig_#{imethod}", imethod
+###          s = "def #{imethod}(*args)
+###                 raise '302 Found' unless @current_user
+###                 __orig_#{imethod}(*args)
+###               end"
+###          eval s
+###        end
+###      end
+###
+###    end
+###
+###
+###    class MyController < Controller
 ###
 ###      GET('/')
 ###      def index
@@ -56,7 +68,8 @@
 ###                     #    [:update, :POST, "/:id"]]
 ###    end
 ###
-###    Controller.new.update(123)   #=> 302 Found (RuntimeError)
+###
+###    MyController.new.update(123)   #=> 302 Found (RuntimeError)
 ###
 module Annotation
 
@@ -79,7 +92,7 @@ module Annotation
       @__annotations.each do |name, args|
         callback = @@__anno_callbacks[name]  or
           raise "*** assertion failed: annotiaion '#{name}' not found."
-        callback.call(method_name, *args)
+        callback.call(self, method_name, *args)
       end
       @__annotations = nil
       @__anno_processing = false
