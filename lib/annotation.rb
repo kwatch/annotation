@@ -71,7 +71,8 @@ module Annotation
 
   def annotation(*names, &block)
     if block
-      (class << self; self; end).class_eval do
+      #(class << self; self; end).class_eval do
+      self.class_eval do
         names.each do |name|
           define_method name do |*args|
             (@__annotations ||= []) << [block, args]
@@ -80,7 +81,8 @@ module Annotation
       end
       return
     end
-    (class << self; self; end).class_eval do
+    #(class << self; self; end).class_eval do
+    self.class_eval do
       s = ""
       names.each do |name|
         alias_method "__anno_#{name}", name
@@ -88,24 +90,38 @@ module Annotation
                 (@__annotations ||= []) << [:__anno_#{name}, args]
               end\n"
       end
-      eval s   # or self.class_eval(s) ?
+      #eval s   # or self.class_eval(s) ?
+      self.class_eval s
     end
   end
 
   private
 
-  def method_added(method_name)
-    if @__annotations && ! @__anno_processing
-      @__anno_processing = true   # necessary to avoid infinite recursive call
-      @__annotations.each do |alias_or_block, args|
-        if alias_or_block.is_a?(Proc)
-          self.instance_exec(method_name, *args, &alias_or_block)
-        else
-          __send__(alias_or_block, method_name, *args)
+  def self.extended(other)
+    other.module_eval do
+      #private
+      #def method_added(method_name) ... end
+      include MethodAdded
+    end
+  end
+
+  module MethodAdded
+    private
+    def method_added(method_name)
+      super
+      if @__annotations && ! @__anno_processing
+        @__anno_processing = true   # necessary to avoid infinite recursive call
+        @__annotations.each do |alias_or_block, args|
+          if alias_or_block.is_a?(Proc)
+            ## notice that Object#instance_exec() is available on Ruby >= 1.8.7
+            self.instance_exec(method_name, *args, &alias_or_block)
+          else
+            __send__(alias_or_block, method_name, *args)
+          end
         end
+        @__annotations = nil
+        @__anno_processing = false
       end
-      @__annotations = nil
-      @__anno_processing = false
     end
   end
 

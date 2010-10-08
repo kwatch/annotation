@@ -17,20 +17,22 @@ require 'annotation'
 HAVE_INSTANCE_EXEC = RUBY_VERSION >= '1.8.7' unless defined?(HAVE_INSTANCE_EXEC)
 
 
-class Dummy1
+module DummyMod1
   extend Annotation
-  def self.GET(method_name, path)
+  def GET(method_name, path)
     (@__actions ||= []) << [method_name, :GET, path]
   end
   annotation :GET
-  class << self
-    [:POST, :PUT, :DELETE].each do |req_meth|
-      define_method req_meth do |method_name, path|
-        (@__actions ||= []) << [method_name, req_meth, path]
-      end
+  [:POST, :PUT, :DELETE].each do |req_meth|
+    define_method req_meth do |method_name, path|
+      (@__actions ||= []) << [method_name, req_meth, path]
     end
   end
   annotation :POST, :PUT, :DELETE
+end
+
+class Dummy1
+  extend DummyMod1
 
   GET('/')
   def index
@@ -48,9 +50,9 @@ class Dummy1
 end
 
 
-class Dummy2
+module DummyMod2
   extend Annotation
-  def self.login_required(method_name)
+  def login_required(method_name)
     orig_method = "_orig_#{method_name}"
     class_eval do
       alias_method orig_method, method_name
@@ -61,6 +63,10 @@ class Dummy2
     end
   end
   annotation :login_required
+end
+
+class Dummy2
+  extend DummyMod2
   login_required
   def do_update(*args)
     return "updated: args=#{args.inspect}"
@@ -68,7 +74,7 @@ class Dummy2
 end
 
 
-class Dummy3
+module DummyMod3
   extend Annotation
 
   if HAVE_INSTANCE_EXEC
@@ -81,6 +87,14 @@ class Dummy3
         (@__actions ||= []) << [method_name, req_meth, path]
       end
     end
+
+  end
+end
+
+class Dummy3
+  extend DummyMod3
+
+  if HAVE_INSTANCE_EXEC
 
     GET('/')
     def index2
@@ -99,7 +113,7 @@ class Dummy3
 end
 
 
-class Dummy4
+module DummyMod4
   extend Annotation
 
   if HAVE_INSTANCE_EXEC
@@ -114,15 +128,22 @@ class Dummy4
                   end"
       end
     end
+
+  end
+end
+
+class Dummy4
+  extend DummyMod4
+
+  if HAVE_INSTANCE_EXEC
+
     login_required
     def do_update(*args)
       return "updated: args=#{args.inspect}"
     end
 
   end
-
 end
-
 
 
 class AnnotationTest
@@ -203,11 +224,9 @@ class AnnotationTest
 
     spec "callback is called only when method is defined." do
       called = false
-      Dummy1.class_eval do
-        (class << self; self; end).class_eval do
-          define_method :ann1 do |method_name|
-            called = true
-          end
+      DummyMod1.module_eval do
+        define_method :ann1 do |method_name|
+          called = true
         end
         annotation :ann1
       end
@@ -222,7 +241,7 @@ class AnnotationTest
     spec "(with block) callback is called only when method is defined." do
       break unless HAVE_INSTANCE_EXEC
       called = false
-      Dummy3.class_eval do
+      DummyMod3.class_eval do
         annotation :ann1 do |method_name|
           called = true
         end
@@ -237,11 +256,13 @@ class AnnotationTest
 
     spec "self in annotation callback is class object." do
       $__self = false
-      Dummy1.class_eval do
-        def self.ann2(method_name)
+      DummyMod1.class_eval do
+        def ann2(method_name)
           $__self = self
         end
         annotation :ann2
+      end
+      Dummy1.class_eval do
         ann2
         def meth2; end
       end
@@ -252,10 +273,12 @@ class AnnotationTest
     spec "(with block) self in annotation callback is class object." do
       break unless HAVE_INSTANCE_EXEC
       $__self2 = false
-      Dummy3.class_eval do
+      DummyMod3.module_eval do
         annotation :ann2 do |method_name|
           $__self2 = self
         end
+      end
+      Dummy3.class_eval do
         ann2
         def meth2; end
       end
@@ -271,10 +294,10 @@ class AnnotationTest
 
     spec "if annotation is specified then call callbacks." do
       annotated = []
-      Dummy2.class_eval do
+      DummyMod2.module_eval do
         @@_annotated_ = annotated
         extend Annotation
-        def self.anno3(method_name)
+        def anno3(method_name)
           @@_annotated_ << method_name
         end
         annotation :anno3
@@ -293,7 +316,7 @@ class AnnotationTest
     spec "(with block) if annotation is specified then call callbacks." do
       break unless HAVE_INSTANCE_EXEC
       annotated = []
-      Dummy4.class_eval do
+      DummyMod4.module_eval do
         @@_annotated_ = annotated
         extend Annotation
         annotation :anno4 do |method_name|

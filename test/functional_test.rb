@@ -18,14 +18,14 @@ require 'annotation'
 HAVE_INSTANCE_EXEC = RUBY_VERSION >= '1.8.7' unless defined?(HAVE_INSTANCE_EXEC)
 
 
-class Controller
+module ControllerAnnotation
   extend Annotation
 
-  def self.GET(imethod, path)
+  def GET(imethod, path)
     (@__routes ||= []) << [path, :GET, imethod]
   end
 
-  def self.login_required(imethod)
+  def login_required(imethod)
     alias_method "__orig_#{imethod}", imethod
     s = "def #{imethod}(*args)
            raise '302 Found' unless @current_user
@@ -35,6 +35,12 @@ class Controller
   end
 
   annotation :GET, :login_required
+
+end
+
+
+module ControllerAnnotation2
+  extend Annotation
 
   annotation :POST do |imethod, path|
     (@__routes ||= []) << [path, :POST, imethod]
@@ -49,6 +55,12 @@ class Controller
     self.class_eval s    # not 'eval(s)'
   end  if HAVE_INSTANCE_EXEC
 
+end
+
+
+class Controller
+  extend ControllerAnnotation
+  extend ControllerAnnotation2
 end
 
 
