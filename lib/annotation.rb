@@ -92,6 +92,7 @@ module Annotation
   end
 
   def self.extended(other)
+    super
     other.module_eval do
       #private
       #def method_added(method_name) ... end
