@@ -75,6 +75,7 @@ module Annotation
       names.each do |name|
         aliased = alias_name(name)
         alias_method aliased, name
+        private aliased
         s << "def #{name}(*args)
                 (@__annotations ||= []) << [:#{aliased}, args]
               end\n"
