@@ -70,21 +70,25 @@ module Annotation
   VERSION = "$Release: 0.0.0 $".split(' ')[1]
 
   def annotation(*names)
-    #(class << self; self; end).class_eval do
     self.class_eval do
       s = ""
       names.each do |name|
-        alias_method "__anno_#{name}", name
+        aliased = alias_name(name)
+        alias_method aliased, name
         s << "def #{name}(*args)
-                (@__annotations ||= []) << [:__anno_#{name}, args]
+                (@__annotations ||= []) << [:#{aliased}, args]
               end\n"
       end
-      #eval s   # or self.class_eval(s) ?
       self.class_eval s
     end
   end
 
   private
+
+  def alias_name(method_name)
+    "__anno_#{method_name}".intern
+    #"__anno_#{method_name}_#{rand().to_s[2..10]}".intern
+  end
 
   def self.extended(other)
     other.module_eval do
