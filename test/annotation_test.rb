@@ -17,10 +17,112 @@ require 'annotation'
 HAVE_INSTANCE_EXEC = RUBY_VERSION >= '1.8.7' unless defined?(HAVE_INSTANCE_EXEC)
 
 
-class Dummy1; end
-class Dummy2; end
-class Dummy3; end
-class Dummy4; end
+class Dummy1
+  extend Annotation
+  def self.GET(method_name, path)
+    (@__actions ||= []) << [method_name, :GET, path]
+  end
+  annotation :GET
+  class << self
+    [:POST, :PUT, :DELETE].each do |req_meth|
+      define_method req_meth do |method_name, path|
+        (@__actions ||= []) << [method_name, req_meth, path]
+      end
+    end
+  end
+  annotation :POST, :PUT, :DELETE
+
+  GET('/')
+  def index
+    "index() called."
+  end
+  GET('/:id')
+  def show(id)
+    "show(#{id.inspect}) called."
+  end
+  PUT('/:id')
+  def update(id)
+    "update(#{id.inspect}) called."
+  end
+
+end
+
+
+class Dummy2
+  extend Annotation
+  def self.login_required(method_name)
+    orig_method = "_orig_#{method_name}"
+    class_eval do
+      alias_method orig_method, method_name
+      eval "def #{method_name}(*args)
+              raise '302 Found' unless @_current_user
+              #{orig_method}(*args)
+            end"
+    end
+  end
+  annotation :login_required
+  login_required
+  def do_update(*args)
+    return "updated: args=#{args.inspect}"
+  end
+end
+
+
+class Dummy3
+  extend Annotation
+
+  if HAVE_INSTANCE_EXEC
+
+    annotation :GET do |method_name, path|
+      (@__actions ||= []) << [method_name, :GET, path]
+    end
+    [:POST, :PUT, :DELETE].each do |req_meth|
+      annotation req_meth do |method_name, path|
+        (@__actions ||= []) << [method_name, req_meth, path]
+      end
+    end
+
+    GET('/')
+    def index2
+      "index() called."
+    end
+    GET('/:id')
+    def show2(id)
+      "show(#{id.inspect}) called."
+    end
+    PUT('/:id')
+    def update2(id)
+      "update(#{id.inspect}) called."
+    end
+
+  end
+end
+
+
+class Dummy4
+  extend Annotation
+
+  if HAVE_INSTANCE_EXEC
+
+    annotation :login_required do |method_name|
+      orig_method = "_orig_#{method_name}"
+      class_eval do
+        alias_method orig_method, method_name
+        eval "def #{method_name}(*args)
+                    raise '403 Forbidden' unless @_current_user
+                    #{orig_method}(*args)
+                  end"
+      end
+    end
+    login_required
+    def do_update(*args)
+      return "updated: args=#{args.inspect}"
+    end
+
+  end
+
+end
+
 
 
 class AnnotationTest
@@ -36,21 +138,6 @@ class AnnotationTest
   def test_annotation
 
     spec "define annotation method." do
-      Dummy1.class_eval do
-        extend Annotation
-        def self.GET(method_name, path)
-          (@__actions ||= []) << [method_name, :GET, path]
-        end
-        annotation :GET
-        class << self
-          [:POST, :PUT, :DELETE].each do |req_meth|
-            define_method req_meth do |method_name, path|
-              (@__actions ||= []) << [method_name, req_meth, path]
-            end
-          end
-        end
-        annotation :POST, :PUT, :DELETE
-      end
       ok_(Dummy1.respond_to?(:GET))    == true
       ok_(Dummy1.respond_to?(:POST))   == true
       ok_(Dummy1.respond_to?(:PUT))    == true
@@ -59,17 +146,6 @@ class AnnotationTest
 
     spec "(with block) define annotation method." do
       break unless HAVE_INSTANCE_EXEC
-      Dummy3.class_eval do
-        extend Annotation
-        annotation :GET do |method_name, path|
-          (@__actions ||= []) << [method_name, :GET, path]
-        end
-        [:POST, :PUT, :DELETE].each do |req_meth|
-          annotation req_meth do |method_name, path|
-            (@__actions ||= []) << [method_name, req_meth, path]
-          end
-        end
-      end
       ok_(Dummy3.respond_to?(:GET))    == true
       ok_(Dummy3.respond_to?(:POST))   == true
       ok_(Dummy3.respond_to?(:PUT))    == true
@@ -78,20 +154,6 @@ class AnnotationTest
 
     spec "callback is called when instance method is defined." do
       #falldown
-      Dummy1.class_eval do
-        GET('/')
-        def index
-          "index() called."
-        end
-        GET('/:id')
-        def show(id)
-          "show(#{id.inspect}) called."
-        end
-        PUT('/:id')
-        def update(id)
-          "update(#{id.inspect}) called."
-        end
-      end
       expected = [ [:index,  :GET, '/'],
                    [:show,   :GET, '/:id'],
                    [:update, :PUT, '/:id'],
@@ -101,21 +163,6 @@ class AnnotationTest
 
     spec "(with block) callback is called when instance method is defined." do
       #falldown
-      break unless HAVE_INSTANCE_EXEC
-      Dummy3.class_eval do
-        GET('/')
-        def index2
-          "index() called."
-        end
-        GET('/:id')
-        def show2(id)
-          "show(#{id.inspect}) called."
-        end
-        PUT('/:id')
-        def update2(id)
-          "update(#{id.inspect}) called."
-        end
-      end
       expected = [ [:index2,  :GET, '/'],
                    [:show2,   :GET, '/:id'],
                    [:update2, :PUT, '/:id'],
@@ -265,23 +312,6 @@ class AnnotationTest
     end
 
     spec "it is possible to define new method in annotation callback." do
-      Dummy2.class_eval do
-        def self.login_required(method_name)
-          orig_method = "_orig_#{method_name}"
-          class_eval do
-            alias_method orig_method, method_name
-            eval "def #{method_name}(*args)
-                    raise '302 Found' unless @_current_user
-                    #{orig_method}(*args)
-                  end"
-          end
-        end
-        annotation :login_required
-        login_required
-        def do_update(*args)
-          return "updated: args=#{args.inspect}"
-        end
-      end
       obj = Dummy2.new
       ok_(obj.respond_to?(:_orig_do_update)) == true
       ok_(proc { obj.do_update(123) }).raise?(RuntimeError, '302 Found')
@@ -289,22 +319,6 @@ class AnnotationTest
 
     spec "(with block) it is possible to define new method in annotation callback." do
       break unless HAVE_INSTANCE_EXEC
-      Dummy4.class_eval do
-        annotation :login_required do |method_name|
-          orig_method = "_orig_#{method_name}"
-          class_eval do
-            alias_method orig_method, method_name
-            eval "def #{method_name}(*args)
-                    raise '403 Forbidden' unless @_current_user
-                    #{orig_method}(*args)
-                  end"
-          end
-        end
-        login_required
-        def do_update(*args)
-          return "updated: args=#{args.inspect}"
-        end
-      end
       obj = Dummy4.new
       ok_(obj.respond_to?(:_orig_do_update)) == true
       ok_(proc { obj.do_update(123) }).raise?(RuntimeError, '403 Forbidden')
