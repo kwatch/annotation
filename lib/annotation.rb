@@ -69,18 +69,7 @@ module Annotation
 
   VERSION = "$Release: 0.0.0 $".split(' ')[1]
 
-  def annotation(*names, &block)
-    if block
-      #(class << self; self; end).class_eval do
-      self.class_eval do
-        names.each do |name|
-          define_method name do |*args|
-            (@__annotations ||= []) << [block, args]
-          end
-        end
-      end
-      return
-    end
+  def annotation(*names)
     #(class << self; self; end).class_eval do
     self.class_eval do
       s = ""
@@ -111,13 +100,8 @@ module Annotation
       super
       if @__annotations && ! @__anno_processing
         @__anno_processing = true   # necessary to avoid infinite recursive call
-        @__annotations.each do |alias_or_block, args|
-          if alias_or_block.is_a?(Proc)
-            ## notice that Object#instance_exec() is available on Ruby >= 1.8.7
-            self.instance_exec(method_name, *args, &alias_or_block)
-          else
-            __send__(alias_or_block, method_name, *args)
-          end
+        @__annotations.each do |aliased, args|
+          __send__(aliased, method_name, *args)
         end
         @__annotations = nil
         @__anno_processing = false
