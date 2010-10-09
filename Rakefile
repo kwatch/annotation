@@ -6,7 +6,7 @@
 ### $License: MIT License $
 ###
 
-release    = '0.1.1'
+release    = '0.1.2'
 project    = 'Annotation'
 gem_name   = 'annotation'
 copyright  = 'copyright(c) 2010 kuwata-lab.com all rights reserved'

@@ -1,6 +1,6 @@
 = CHANGES
 
-== Release 0.1.0 (2010-10-10)
+== Release 0.1.2 (2010-10-10)
 
 * first release.
 
