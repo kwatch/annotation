@@ -94,6 +94,11 @@ class AnnotationTest
       ok_(Dummy1.respond_to?(:DELETE)) == true
     end
 
+    spec "annotation method should be protected." do
+      msg = "protected method `GET' called for Dummy1:Class"
+      ok_(proc { Dummy1.GET('/') }).raise?(NoMethodError, msg)
+    end
+
     spec "aliased method should be private." do
       ok_(Dummy1.methods.grep(/^GET$/).length) == 1
       ok_(Dummy1.private_methods.grep(/^__anno_GET/).length) == 1

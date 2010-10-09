@@ -78,7 +78,8 @@ module Annotation
         private aliased
         s << "def #{name}(*args)
                 (@__annotations ||= []) << [:#{aliased}, args]
-              end\n"
+              end
+              protected :#{name}\n"    # or private?
       end
       self.class_eval s
     end
