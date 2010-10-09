@@ -14,32 +14,33 @@
 ###    require 'annotation'
 ###
 ###
-###    class Controller
+###    module ControllerAnnotations
 ###      extend Annotation
 ###
-###      def self.GET(imethod, path)
-###        (@__routes ||= []) << [path, :GET, imethod]
+###      def GET(method_name, path)
+###        (@__routes ||= []) << [path, :GET, method_name]
 ###      end
 ###
-###      def self.POST(imethod, path)
-###        (@__routes ||= []) << [path, :POST, imethod]
+###      def POST(method_name, path)
+###        (@__routes ||= []) << [path, :POST, method_name]
 ###      end
 ###
-###      def self.login_required(imethod)
-###        alias_method "__orig_#{imethod}", imethod
-###        s = "def #{imethod}(*args)
+###      def login_required(method_name)
+###        alias_method "__orig_#{method_name}", method_name
+###        s = "def #{method_name}(*args)
 ###               raise '302 Found' unless @current_user
-###               __orig_#{imethod}(*args)
+###               __orig_#{method_name}(*args)
 ###             end"
 ###        self.class_eval s    # not 'eval(s)'
 ###      end
 ###
-###      annotation :GET, :POST, :login_required
+###      annotation :GET, :POST, :login_required         # !!!!!!
 ###
 ###    end
 ###
 ###
-###    class MyController < Controller
+###    class Controller
+###      extend ControllerAnnotations
 ###
 ###      GET('/')
 ###      def index
@@ -63,7 +64,10 @@
 ###    end
 ###
 ###
-###    p MyController.new.update(123)   #=> 302 Found (RuntimeError)
+###    p Controller.new.update(123)   #=> 302 Found (RuntimeError)
+###
+###
+### See README.txt for more examples.
 ###
 module Annotation
 
