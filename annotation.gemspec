@@ -17,7 +17,7 @@ spec = Gem::Specification.new do |s|
   s.rubyforge_project = 'annotation'
   s.version     = "$Release$"
   s.platform    = Gem::Platform::RUBY
-  s.homepage    = "http://www.kuwata-lab.com/annotation/"
+  s.homepage    = "http://github.com/kwatch/annotation"
   s.summary     = "annotation library similar to Java or Python"
   s.description = <<-'END'
   Annotation.rb is a very small but pretty good library which introduces
